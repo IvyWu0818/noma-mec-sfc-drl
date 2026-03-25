@@ -7,6 +7,8 @@ from core.mec import MECNode
 from core.topology import create_topology
 from core.delay import total_delay, local_stage_delay
 
+random.seed(42)
+
 
 def create_random_task(task_id):
     vnfs = [VNF(i, random.randint(10, 25)) for i in range(3)]
@@ -15,7 +17,7 @@ def create_random_task(task_id):
     return Task(
         task_id=task_id,
         data_size=random.randint(20, 50),
-        deadline=random.randint(8, 20),
+        deadline=random.randint(25, 45),
         sfc_chain=sfc
     )
 
@@ -38,6 +40,7 @@ def greedy_assign_task(task, graph, mec_nodes):
 
         for node_id, node in mec_nodes.items():
             candidate_cpu = min(max(vnf.cpu_cycles * 0.8, 8.0), node.cpu_capacity * 0.6)
+
             stage_cost = local_stage_delay(
                 graph=graph,
                 prev_node=prev_node,
@@ -56,7 +59,7 @@ def greedy_assign_task(task, graph, mec_nodes):
         task.cpu_alloc.append(best_cpu)
 
         service_time = vnf.cpu_cycles / best_cpu
-        mec_nodes[best_node].queue.append(service_time)
+        mec_nodes[best_node].queue_load += service_time * 0.2
 
         prev_node = best_node
 

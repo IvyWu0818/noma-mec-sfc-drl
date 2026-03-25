@@ -7,6 +7,8 @@ from core.mec import MECNode
 from core.topology import create_topology
 from core.delay import total_delay
 
+random.seed(42)
+
 
 def create_random_task(task_id):
     vnfs = [VNF(i, random.randint(10, 25)) for i in range(3)]
@@ -15,7 +17,7 @@ def create_random_task(task_id):
     return Task(
         task_id=task_id,
         data_size=random.randint(20, 50),
-        deadline=random.randint(8, 20),
+        deadline=random.randint(25, 45),
         sfc_chain=sfc
     )
 
@@ -45,7 +47,7 @@ def run():
             task.cpu_alloc.append(cpu_alloc)
 
             service_time = vnf.cpu_cycles / cpu_alloc
-            mec_nodes[node_id].queue.append(service_time)
+            mec_nodes[node_id].queue_load += service_time * 0.2
 
         task.total_delay = total_delay(task, graph, mec_nodes)
         delays.append(task.total_delay)
