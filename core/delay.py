@@ -20,19 +20,24 @@ def forwarding_delay(graph, src, dst):
     return delay
 
 
+def local_stage_delay(graph, prev_node, node_id, vnf, cpu_alloc, mec_nodes):
+    node = mec_nodes[node_id]
+    total = queue_delay(node) + compute_delay(vnf.cpu_cycles, cpu_alloc)
+
+    if prev_node is not None and prev_node != node_id:
+        total += forwarding_delay(graph, prev_node, node_id)
+
+    return total
+
+
 def total_delay(task, graph, mec_nodes):
     total = uplink_delay(task.data_size)
 
+    prev_node = None
     for i, vnf in enumerate(task.sfc_chain.vnfs):
         node_id = task.vnf_placement[i]
-        node = mec_nodes[node_id]
-
-        total += queue_delay(node)
-        total += compute_delay(vnf.cpu_cycles, task.cpu_alloc[i])
-
-        if i < len(task.sfc_chain.vnfs) - 1:
-            next_node = task.vnf_placement[i + 1]
-            if node_id != next_node:
-                total += forwarding_delay(graph, node_id, next_node)
+        cpu_alloc = task.cpu_alloc[i]
+        total += local_stage_delay(graph, prev_node, node_id, vnf, cpu_alloc, mec_nodes)
+        prev_node = node_id
 
     return total

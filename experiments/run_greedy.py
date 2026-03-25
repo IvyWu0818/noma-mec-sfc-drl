@@ -5,7 +5,7 @@ from core.task import Task
 from core.sfc import VNF, SFC
 from core.mec import MECNode
 from core.topology import create_topology
-from core.delay import total_delay
+from core.delay import total_delay, local_stage_delay
 
 
 def create_random_task(task_id):
@@ -28,6 +28,39 @@ def create_mec_nodes():
     }
 
 
+def greedy_assign_task(task, graph, mec_nodes):
+    prev_node = None
+
+    for vnf in task.sfc_chain.vnfs:
+        best_node = None
+        best_cpu = None
+        best_cost = float("inf")
+
+        for node_id, node in mec_nodes.items():
+            candidate_cpu = min(max(vnf.cpu_cycles * 0.8, 8.0), node.cpu_capacity * 0.6)
+            stage_cost = local_stage_delay(
+                graph=graph,
+                prev_node=prev_node,
+                node_id=node_id,
+                vnf=vnf,
+                cpu_alloc=candidate_cpu,
+                mec_nodes=mec_nodes
+            )
+
+            if stage_cost < best_cost:
+                best_cost = stage_cost
+                best_node = node_id
+                best_cpu = candidate_cpu
+
+        task.vnf_placement.append(best_node)
+        task.cpu_alloc.append(best_cpu)
+
+        service_time = vnf.cpu_cycles / best_cpu
+        mec_nodes[best_node].queue.append(service_time)
+
+        prev_node = best_node
+
+
 def run():
     graph = create_topology()
     mec_nodes = create_mec_nodes()
@@ -37,16 +70,7 @@ def run():
     timeouts = 0
 
     for task in tasks:
-        for vnf in task.sfc_chain.vnfs:
-            node_id = random.choice(list(mec_nodes.keys()))
-            cpu_alloc = random.uniform(8, 20)
-
-            task.vnf_placement.append(node_id)
-            task.cpu_alloc.append(cpu_alloc)
-
-            service_time = vnf.cpu_cycles / cpu_alloc
-            mec_nodes[node_id].queue.append(service_time)
-
+        greedy_assign_task(task, graph, mec_nodes)
         task.total_delay = total_delay(task, graph, mec_nodes)
         delays.append(task.total_delay)
 
