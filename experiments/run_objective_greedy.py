@@ -12,13 +12,13 @@ random.seed(42)
 
 
 def create_random_task(task_id):
-    vnfs = [VNF(i, random.randint(10, 25)) for i in range(3)]
+    vnfs = [VNF(i, random.randint(10, 30)) for i in range(4)]
     sfc = SFC(vnfs)
 
     return Task(
         task_id=task_id,
-        data_size=random.randint(30, 50),
-        deadline=random.randint(20, 35),
+        deadline=random.randint(12, 25),
+        data_size=random.randint(40, 70),
         sfc_chain=sfc
     )
 

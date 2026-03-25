@@ -1,5 +1,6 @@
 import networkx as nx
 
+
 def uplink_delay(data_size, rate=10.0):
     return data_size / rate
 
@@ -14,7 +15,7 @@ def queue_delay(node):
 
 def forwarding_delay(graph, src, dst):
     path = nx.shortest_path(graph, src, dst, weight="delay")
-    delay = 0
+    delay = 0.0
     for u, v in zip(path[:-1], path[1:]):
         delay += graph[u][v]["delay"]
     return delay
