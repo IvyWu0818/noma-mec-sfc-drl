@@ -7,13 +7,13 @@ from core.delay import total_delay
 
 
 def create_random_task(task_id):
-    vnfs = [VNF(i, random.randint(5, 15)) for i in range(3)]
+    vnfs = [VNF(i, random.randint(10, 25)) for i in range(3)]
     sfc = SFC(vnfs)
 
     return Task(
         task_id=task_id,
-        data_size=random.randint(10, 30),
-        deadline=random.randint(20, 50),
+        data_size=random.randint(20, 50),
+        deadline=random.randint(8, 20),
         sfc_chain=sfc
     )
 
