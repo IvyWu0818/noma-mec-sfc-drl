@@ -9,8 +9,11 @@ def create_topology():
     G.add_node("mec2")
 
     G.add_edge("bs", "mec0", delay=2)
-    G.add_edge("bs", "mec1", delay=3)
-    G.add_edge("mec0", "mec2", delay=2)
+    G.add_edge("bs", "mec1", delay=4)
+    G.add_edge("bs", "mec2", delay=6)
+
+    G.add_edge("mec0", "mec1", delay=3)
     G.add_edge("mec1", "mec2", delay=2)
+    G.add_edge("mec0", "mec2", delay=5)
 
     return G

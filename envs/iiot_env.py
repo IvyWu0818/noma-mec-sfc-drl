@@ -61,20 +61,19 @@ class IIoTEnvV2(gym.Env):
 
     def _create_mec_nodes(self):
         return {
-            "mec0": MECNode("mec0", 50),
-            "mec1": MECNode("mec1", 50),
-            "mec2": MECNode("mec2", 50)
+            "mec0": MECNode("mec0", 40),
+            "mec1": MECNode("mec1", 55),
+            "mec2": MECNode("mec2", 75)
         }
 
     def _create_random_task(self, task_id):
-        # 中等偏難，但不要太硬
-        vnfs = [VNF(i, random.randint(10, 25)) for i in range(3)]
+        vnfs = [VNF(i, random.randint(12, 28)) for i in range(3)]
         sfc = SFC(vnfs)
 
         return Task(
             task_id=task_id,
-            data_size=random.randint(32, 55),
-            deadline=random.randint(18, 30),
+            data_size=random.randint(35, 60),
+            deadline=random.randint(16, 28),
             sfc_chain=sfc
         )
 
@@ -158,7 +157,7 @@ class IIoTEnvV2(gym.Env):
         split_penalty = 0.15 * (unique_nodes - 1)
 
         # reward 對應公式(1)，僅做 normalization
-        reward = -(delay / 20.0 + self.beta * slack / 20.0 + balance_penalty + split_penalty)
+        reward = -(delay / 20.0 + self.beta * slack / 20.0)
 
         if slack == 0:
             reward += 1.0
