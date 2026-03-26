@@ -221,10 +221,79 @@ def test_under_different_load_levels():
     print()
 
 
+def test_formula_exact_cases():
+    print("=" * 60)
+    print("Test D: Exact formula verification for (1)(7)(8)")
+    print("=" * 60)
+
+    cases = [
+        {"delay": 10.0, "deadline": 15.0, "beta": 0},
+        {"delay": 10.0, "deadline": 15.0, "beta": 5},
+        {"delay": 15.0, "deadline": 15.0, "beta": 10},
+        {"delay": 20.0, "deadline": 15.0, "beta": 1},
+        {"delay": 20.0, "deadline": 15.0, "beta": 5},
+        {"delay": 20.0, "deadline": 15.0, "beta": 10},
+        {"delay": 30.0, "deadline": 12.0, "beta": 2},
+    ]
+
+    print(
+        f"{'Case':<6}"
+        f"{'Delay':<10}"
+        f"{'Deadline':<10}"
+        f"{'Beta':<8}"
+        f"{'Slack(calc)':<14}"
+        f"{'Slack(exp)':<12}"
+        f"{'Obj(calc)':<12}"
+        f"{'Obj(exp)':<12}"
+        f"{'Pass':<8}"
+    )
+
+    all_passed = True
+
+    for idx, case in enumerate(cases, start=1):
+        delay = case["delay"]
+        deadline = case["deadline"]
+        beta = case["beta"]
+
+        slack_calc = compute_slack(delay, deadline)
+        slack_exp = max(0.0, delay - deadline)
+
+        obj_calc = compute_objective(delay, deadline, beta)
+        obj_exp = delay + beta * slack_exp
+
+        passed = (
+            abs(slack_calc - slack_exp) < 1e-9 and
+            abs(obj_calc - obj_exp) < 1e-9
+        )
+
+        if not passed:
+            all_passed = False
+
+        print(
+            f"{idx:<6}"
+            f"{delay:<10.2f}"
+            f"{deadline:<10.2f}"
+            f"{beta:<8.2f}"
+            f"{slack_calc:<14.2f}"
+            f"{slack_exp:<12.2f}"
+            f"{obj_calc:<12.2f}"
+            f"{obj_exp:<12.2f}"
+            f"{str(passed):<8}"
+        )
+
+    print()
+    if all_passed:
+        print("All exact-case checks passed.")
+        print("- Formula (7)(8) verified: slack = max(0, delay - deadline)")
+        print("- Formula (1) verified: objective = delay + beta * slack")
+    else:
+        print("Some exact-case checks failed.")
+
 def main():
     test_formula_78_basic_cases()
     test_formula_1_beta_sensitivity()
     test_under_different_load_levels()
+    test_formula_exact_cases()
 
 
 if __name__ == "__main__":
