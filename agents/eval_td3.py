@@ -1,7 +1,7 @@
 import numpy as np
 from stable_baselines3 import TD3
 
-from envs.iiot_env_v2 import IIoTEnvV2
+from envs.iiot_env import IIoTEnvV2
 
 
 def evaluate(model, num_episodes=20, beta=10.0):

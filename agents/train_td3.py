@@ -6,7 +6,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.noise import NormalActionNoise
 
-from envs.iiot_env_v2 import IIoTEnvV2
+from envs.iiot_env import IIoTEnvV2
 
 
 os.makedirs("models", exist_ok=True)
