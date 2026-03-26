@@ -65,13 +65,13 @@ class IIoTEnv(gym.Env):
         }
 
     def _create_random_task(self, task_id):
-        vnfs = [VNF(i, random.randint(10, 25)) for i in range(3)]
+        vnfs = [VNF(i, random.randint(15, 30)) for i in range(4)]
         sfc = SFC(vnfs)
 
         return Task(
             task_id=task_id,
-            data_size=random.randint(30, 50),
-            deadline=random.randint(20, 35),
+            data_size=random.randint(40, 80),
+            deadline=random.randint(15, 25),
             sfc_chain=sfc
         )
 
