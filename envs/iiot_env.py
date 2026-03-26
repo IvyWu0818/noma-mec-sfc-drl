@@ -134,7 +134,12 @@ class IIoTEnv(gym.Env):
         delay = total_delay(task, self.graph, self.mec_nodes)
         slack = compute_slack(delay, task.deadline)
 
-        reward = -(delay + self.beta * slack)
+        # ✅ reward normalization（重點）
+        reward = -(delay / 20.0 + self.beta * slack / 20.0)
+
+        # ✅ bonus：準時完成給獎勵（推薦）
+        if slack == 0:
+            reward += 1.0
 
         info = {
             "task_id": task.task_id,
