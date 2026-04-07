@@ -31,12 +31,23 @@ class IIoTEnvV3(gym.Env):
 
     metadata = {"render_modes": []}
 
-    def __init__(self, num_tasks=10, beta=10.0, seed=42):
+    def __init__(
+    self,
+    num_tasks=10,
+    beta=10.0,
+    seed=42,
+    timeout_penalty=20.0,
+    cpu_violation_penalty=5.0,
+    reward_scale=1.0,
+):
         super().__init__()
 
         self.num_tasks = num_tasks
         self.beta = beta
         self.seed = seed
+        self.timeout_penalty = timeout_penalty
+        self.cpu_violation_penalty = cpu_violation_penalty
+        self.reward_scale = reward_scale
 
         random.seed(seed)
         np.random.seed(seed)
@@ -135,31 +146,60 @@ class IIoTEnvV3(gym.Env):
 
         selected_nodes = []
 
+        # 紀錄這個 task 在每個 node 上總共分到多少 CPU
+        node_cpu_used = {name: 0.0 for name in mec_names}
+
         for i, vnf in enumerate(task.sfc_chain.vnfs):
             chosen_idx = int(np.argmax(placement_scores[i]))
             selected_node = mec_names[chosen_idx]
             selected_nodes.append(selected_node)
-
             task.vnf_placement.append(selected_node)
 
             node_capacity = self.mec_nodes[selected_node].cpu_capacity
+
+            # 單一 VNF 的 CPU allocation 邊界
             cpu_alloc = max(8.0, min(float(cpu_ratios[i]) * node_capacity, 30.0))
             task.cpu_alloc.append(cpu_alloc)
 
+            # 統計這個 task 在該節點使用的 CPU
+            node_cpu_used[selected_node] += cpu_alloc
+
+            # 更新 queue load
             service_time = vnf.cpu_cycles / cpu_alloc
             self.mec_nodes[selected_node].queue_load += service_time * 0.2
 
+        # 計算 delay / slack
         delay = total_delay(task, self.graph, self.mec_nodes)
         slack = compute_slack(delay, task.deadline)
 
-        # 純公式版 reward：對應計畫中的 delay + beta * slack
-        reward = -(delay / 20.0 + self.beta * slack / 20.0)
+        # deadline violation
+        timeout = 1.0 if delay > task.deadline else 0.0
+
+        # CPU violation：同一個 task 放到同一個 node 的 CPU 總和不能超過該 node capacity
+        cpu_violation = 0.0
+        for node_name, used_cpu in node_cpu_used.items():
+            cap = self.mec_nodes[node_name].cpu_capacity
+            cpu_violation += max(0.0, used_cpu - cap)
+
+        # 對齊你的公式：
+        # cost = delay + beta * slack + timeout_penalty * timeout + cpu_penalty * cpu_violation
+        cost = (
+            delay
+            + self.beta * slack
+            + self.timeout_penalty * timeout
+            + self.cpu_violation_penalty * cpu_violation
+        )
+
+        reward = -cost / self.reward_scale
 
         info = {
             "task_id": task.task_id,
-            "delay": delay,
-            "deadline": task.deadline,
-            "slack": slack,
+            "delay": float(delay),
+            "deadline": float(task.deadline),
+            "slack": float(slack),
+            "timeout": float(timeout),
+            "cpu_violation": float(cpu_violation),
+            "cost": float(cost),
             "selected_nodes": selected_nodes,
             "cpu_alloc": [float(x) for x in task.cpu_alloc],
         }

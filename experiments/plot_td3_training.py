@@ -1,6 +1,19 @@
+import os
 import json
 import matplotlib.pyplot as plt
 
+
+# ============================================================
+# 設定
+# ============================================================
+
+OUTPUT_DIR = "results/figures"
+SHOW_PLOTS = False   # 👉 要不要顯示視窗（報告用通常 False）
+
+
+# ============================================================
+# 工具：平滑
+# ============================================================
 
 def smooth(data, window=10):
     if not data:
@@ -12,76 +25,120 @@ def smooth(data, window=10):
     return smoothed
 
 
+# ============================================================
+# 存圖
+# ============================================================
+
+def save_plot(fig, filename):
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    path = os.path.join(OUTPUT_DIR, filename)
+    fig.savefig(path, dpi=300, bbox_inches='tight')
+    print(f"Saved: {path}")
+
+
+# ============================================================
+# 主程式
+# ============================================================
+
 def main():
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
     with open("results/td3_v3_training_metrics.json", "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    episode_rewards = data["episode_rewards"]
-    episode_avg_delay = data["episode_avg_delay"]
-    episode_avg_slack = data["episode_avg_slack"]
-    episode_timeout_ratio = data["episode_timeout_ratio"]
+    rewards = data["episode_rewards"]
+    delays = data["episode_avg_delay"]
+    slacks = data["episode_avg_slack"]
+    timeouts = data["episode_timeout_ratio"]
     actor_losses = data["actor_losses"]
     critic_losses = data["critic_losses"]
 
-    # 1. Episode reward
-    plt.figure()
-    plt.plot(episode_rewards, label="raw")
-    plt.plot(smooth(episode_rewards, window=10), label="smoothed")
+    # ========================================================
+    # 1. Reward
+    # ========================================================
+    fig = plt.figure()
+    plt.plot(rewards, label="raw")
+    plt.plot(smooth(rewards), label="smoothed")
     plt.title("Episode Reward")
     plt.xlabel("Episode")
     plt.ylabel("Reward")
     plt.legend()
     plt.grid()
 
-    # 2. Avg delay
-    plt.figure()
-    plt.plot(episode_avg_delay, label="raw")
-    plt.plot(smooth(episode_avg_delay, window=10), label="smoothed")
-    plt.title("Episode Avg Delay")
+    save_plot(fig, "reward.png")
+
+    # ========================================================
+    # 2. Delay
+    # ========================================================
+    fig = plt.figure()
+    plt.plot(delays, label="raw")
+    plt.plot(smooth(delays), label="smoothed")
+    plt.title("Avg Delay per Episode")
     plt.xlabel("Episode")
     plt.ylabel("Delay")
     plt.legend()
     plt.grid()
 
-    # 3. Avg slack
-    plt.figure()
-    plt.plot(episode_avg_slack, label="raw")
-    plt.plot(smooth(episode_avg_slack, window=10), label="smoothed")
-    plt.title("Episode Avg Slack")
+    save_plot(fig, "delay.png")
+
+    # ========================================================
+    # 3. Slack
+    # ========================================================
+    fig = plt.figure()
+    plt.plot(slacks, label="raw")
+    plt.plot(smooth(slacks), label="smoothed")
+    plt.title("Avg Slack per Episode")
     plt.xlabel("Episode")
     plt.ylabel("Slack")
     plt.legend()
     plt.grid()
 
-    # 4. Timeout ratio
-    plt.figure()
-    plt.plot(episode_timeout_ratio, label="raw")
-    plt.plot(smooth(episode_timeout_ratio, window=10), label="smoothed")
-    plt.title("Episode Timeout Ratio")
+    save_plot(fig, "slack.png")
+
+    # ========================================================
+    # 4. Timeout Ratio
+    # ========================================================
+    fig = plt.figure()
+    plt.plot(timeouts, label="raw")
+    plt.plot(smooth(timeouts), label="smoothed")
+    plt.title("Timeout Ratio per Episode")
     plt.xlabel("Episode")
     plt.ylabel("Ratio")
     plt.legend()
     plt.grid()
 
-    # 5. Critic loss
+    save_plot(fig, "timeout.png")
+
+    # ========================================================
+    # 5. Critic Loss
+    # ========================================================
     if critic_losses:
-        plt.figure()
+        fig = plt.figure()
         plt.plot(critic_losses)
         plt.title("Critic Loss")
-        plt.xlabel("Training Update")
+        plt.xlabel("Training Step")
         plt.ylabel("Loss")
         plt.grid()
 
-    # 6. Actor loss
+        save_plot(fig, "critic_loss.png")
+
+    # ========================================================
+    # 6. Actor Loss
+    # ========================================================
     if actor_losses:
-        plt.figure()
+        fig = plt.figure()
         plt.plot(actor_losses)
         plt.title("Actor Loss")
-        plt.xlabel("Training Update")
+        plt.xlabel("Training Step")
         plt.ylabel("Loss")
         plt.grid()
 
-    plt.show()
+        save_plot(fig, "actor_loss.png")
+
+    if SHOW_PLOTS:
+        plt.show()
+    else:
+        plt.close("all")
 
 
 if __name__ == "__main__":
