@@ -34,11 +34,11 @@ class IIoTEnvV3(gym.Env):
     def __init__(
     self,
     num_tasks=10,
-    beta=10.0,
+    beta=5.0,
     seed=42,
-    timeout_penalty=20.0,
+    timeout_penalty=10.0,
     cpu_violation_penalty=5.0,
-    reward_scale=1.0,
+    reward_scale=20.0,
 ):
         super().__init__()
 
@@ -81,13 +81,13 @@ class IIoTEnvV3(gym.Env):
         }
 
     def _create_random_task(self, task_id):
-        vnfs = [VNF(i, random.randint(12, 28)) for i in range(3)]
+        vnfs = [VNF(i, random.randint(8, 18)) for i in range(3)]
         sfc = SFC(vnfs)
 
         return Task(
             task_id=task_id,
-            data_size=random.randint(35, 60),
-            deadline=random.randint(16, 28),
+            data_size=random.randint(20, 40),
+            deadline=random.randint(22, 32),
             sfc_chain=sfc
         )
 
@@ -184,8 +184,8 @@ class IIoTEnvV3(gym.Env):
         # 對齊你的公式：
         # cost = delay + beta * slack + timeout_penalty * timeout + cpu_penalty * cpu_violation
         cost = (
-            delay
-            + self.beta * slack
+            0.7 * delay
+            + 0.3 * self.beta * slack
             + self.timeout_penalty * timeout
             + self.cpu_violation_penalty * cpu_violation
         )

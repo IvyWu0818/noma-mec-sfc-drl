@@ -177,9 +177,9 @@ def main():
     env = Monitor(
         IIoTEnvV3(
             num_tasks=10,
-            beta=10.0,
+            beta=5.0,
             seed=42,
-            timeout_penalty=20.0,
+            timeout_penalty=10.0,
             cpu_violation_penalty=5.0,
             reward_scale=20.0,
         ),
@@ -189,9 +189,9 @@ def main():
     eval_env = Monitor(
         IIoTEnvV3(
             num_tasks=10,
-            beta=10.0,
+            beta=5.0,
             seed=123,
-            timeout_penalty=20.0,
+            timeout_penalty=10.0,
             cpu_violation_penalty=5.0,
             reward_scale=20.0,
         ),
