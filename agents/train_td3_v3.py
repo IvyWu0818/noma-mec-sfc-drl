@@ -176,7 +176,7 @@ def main():
     # 訓練環境
     env = Monitor(
         IIoTEnvV3(
-            num_tasks=10,
+            num_tasks=100,
             beta=5.0,
             seed=42,
             timeout_penalty=10.0,
@@ -188,7 +188,7 @@ def main():
 
     eval_env = Monitor(
         IIoTEnvV3(
-            num_tasks=10,
+            num_tasks=100,
             beta=5.0,
             seed=123,
             timeout_penalty=10.0,
