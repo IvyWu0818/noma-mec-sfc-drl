@@ -161,7 +161,7 @@ def main():
 
     print("🚀 V11 訓練啟動")
     print(f"   obs=21, action=16 (同 V10)")
-    print(f"   NOMA: K={IIoTEnvV11.SLOT_TASK_SIZE // MAX_NOMA_PER_CH} channels, M=2, "
+    print(f"   NOMA: K=3 channels, M=2, "
           f"SLOT_SIZE={IIoTEnvV11.SLOT_TASK_SIZE} tasks/slot")
     print(f"   Channel overflow: per-slot 定義（V11 核心修復）")
     print(f"   100 tasks → ~{100 // IIoTEnvV11.SLOT_TASK_SIZE} slots，"
