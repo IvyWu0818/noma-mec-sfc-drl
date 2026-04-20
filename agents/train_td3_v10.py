@@ -174,7 +174,7 @@ def main():
         device="cpu",
     )
 
-    print("🚀 V10 訓練啟動")
+    print("V10 訓練啟動")
     print("   obs=21 (含 ch_rem×3 + Δqueue×3), action=16 (含 rho 部分卸載)")
     print("   NOMA: K=3 channels, M=2 max/channel, Gumbel softmax 採樣")
     print("   算力投影: 硬約束可行化（公式5、6）")
@@ -188,8 +188,7 @@ def main():
     output_path = "results/td3_v10_training_metrics.json"
     with open(output_path, "w") as f:
         json.dump(callback.metrics, f, indent=2)
-    print(f"✅ V10 數據已存至 {output_path}")
-
+    print(f"V10 數據已存至 {output_path}")
 
 if __name__ == "__main__":
     main()

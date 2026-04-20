@@ -46,7 +46,7 @@ def smooth(data, window=15):
 
 def main():
     if not os.path.exists(INPUT_FILE):
-        print(f"❌ 找不到 {INPUT_FILE}，請先執行 train_td3_v10.py")
+        print(f"❌ \找不到 {INPUT_FILE}，請先執行 train_td3_v10.py")
         return
 
     with open(INPUT_FILE, "r") as f:
