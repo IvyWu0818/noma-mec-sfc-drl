@@ -3,7 +3,10 @@ __pycache__/
 *.pyc
 .DS_Store
 
-results/
+results/*
+!results/td3_v10_training_metrics.json
+!results/figures_v10/
+!results/figures_v10/*.png
 logs/
 
 *.pt

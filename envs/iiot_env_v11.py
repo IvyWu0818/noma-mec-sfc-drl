@@ -341,22 +341,22 @@ class IIoTEnvV11(gym.Env):
         terminated = self.current_idx >= self.num_tasks
         obs = self._get_obs() if not terminated else np.zeros(21, dtype=np.float32)
 
-        return obs, reward, terminated, False, {
-            "delay":             delay,
-            "slack":             slack,
-            "cpu_viol":          cpu_viol,
-            "t_ul":              t_ul,
-            "t_comp":            t_comp,
-            "t_link":            t_link,
-            "deadline_pressure": deadline_pressure,
-            "task_type_id":      getattr(task, "task_type_id", 0),
-            "assigned_ch":       assigned_ch,
-            "channel_overflow":  channel_overflow,
-            "sinr":              sinr,
-            "ru_k":              ru_k,
-            "rho":               rho,
+        return obs, float(reward), terminated, False, {
+            "delay":             float(delay),
+            "slack":             float(slack),
+            "cpu_viol":          float(cpu_viol),
+            "t_ul":              float(t_ul),
+            "t_comp":            float(t_comp),
+            "t_link":            float(t_link),
+            "deadline_pressure": float(deadline_pressure),
+            "task_type_id":      int(getattr(task, "task_type_id", 0)),
+            "assigned_ch":       int(assigned_ch),
+            "channel_overflow":  float(channel_overflow),
+            "sinr":              float(sinr),
+            "ru_k":              float(ru_k),
+            "rho":               float(rho),
             "selected_nodes":    selected_nodes,
-            "slot_id":           (self.current_idx - 1) // self.SLOT_TASK_SIZE,
+            "slot_id":           int((self.current_idx - 1) // self.SLOT_TASK_SIZE),
         }
 
     def reset(self, seed=None, options=None):

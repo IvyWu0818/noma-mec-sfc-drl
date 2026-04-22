@@ -156,7 +156,7 @@ def main():
         action_noise=action_noise,
         policy_kwargs=dict(net_arch=[400, 300]),
         verbose=1,
-        device="cpu",
+        device="cuda",
     )
 
     print("🚀 V11 訓練啟動")
