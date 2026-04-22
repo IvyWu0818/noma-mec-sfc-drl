@@ -4,9 +4,9 @@ __pycache__/
 .DS_Store
 
 results/*
-!results/td3_v10_training_metrics.json
-!results/figures_v10/
-!results/figures_v10/*.png
+!results/td3_v11_training_metrics.json
+!results/figures_v11/
+!results/figures_v11/*.png
 logs/
 
 *.pt
