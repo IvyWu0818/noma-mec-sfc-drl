@@ -171,7 +171,7 @@ def main():
     print(f"  TX Power     : {TX_POWER_W*1000:.0f} mW = {10*np.log10(TX_POWER_W*1000):.1f} dBm (3GPP PC3)")
     print(f"  Bandwidth/ch : {BANDWIDTH_MHZ} MHz  (total {BANDWIDTH_MHZ*3:.0f} MHz)")
     print(f"  Sub-channels : K={3}, M={2} per ch (M=2: SIC 最佳複雜度)")
-    print(f"  Slot duration: 0.5 ms (5G NR µ=1, 30 kHz SCS)")
+    print(f"  Slot duration: 0.5 ms (5G NR mu=1, 30 kHz SCS)")
     print(f"[通道容量估算 (單用戶, 無干擾)]")
     print(f"  E[SINR]      : {_sinr_avg:.1f} ({10*np.log10(_sinr_avg):.1f} dB)")
     print(f"  E[Rate]      : {_rate_avg:.1f} Mbps per sub-channel")
