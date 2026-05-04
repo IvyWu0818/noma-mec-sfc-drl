@@ -159,7 +159,6 @@ def main():
     )
 
     # 5G NR 參數驗證輸出
-    import numpy as np
     _h_avg = 1.0  # E[|h|²] = 1 (Exp(1))
     _sinr_avg = TX_POWER_W * _h_avg / NOISE_POWER_W
     _rate_avg = BANDWIDTH_MHZ * np.log2(1.0 + _sinr_avg)
