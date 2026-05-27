@@ -6,7 +6,9 @@ __pycache__/
 results/*
 !results/td3_v17_training_metrics.json
 !results/figures_v17/
-!results/figures_v17/*.png
+!results/figures_compare/
+results/figures_compare/*
+!results/figures_compare/*.png
 logs/
 
 *.pt
