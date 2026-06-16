@@ -15,11 +15,11 @@ import matplotlib.gridspec as gridspec
 from experiments.baselines_v17 import print_summary
 
 INPUT_FILE = "results/baseline_eval_v17.json"
-OUTPUT_DIR = "results/figures_compare"
+OUTPUT_DIR = "results/figures_baseline"
 OUTPUT_FILE = os.path.join(OUTPUT_DIR, "baseline_compare_v17.png")
 
-ALGOS  = ["TD3", "Greedy", "GA", "Random"]
-COLORS = {"TD3": "#2E86AB", "Greedy": "#E07B54", "GA": "#7E57C2", "Random": "#9E9E9E"}
+ALGOS  = ["TD3", "Greedy", "GA"]
+COLORS = {"TD3": "#2E86AB", "Greedy": "#E07B54", "GA": "#7E57C2"}
 
 
 def mean_std(data, algo, key):
@@ -121,7 +121,7 @@ def main():
               "Timeout Ratio", "Ratio")
 
     fig.suptitle(
-        "TD3(V17) vs Greedy vs GA vs Random -- Evaluation Comparison\n"
+        "TD3(V17) vs Greedy vs GA -- Evaluation Comparison\n"
         f"({len(data['TD3']['episode_rewards'])} episodes x 100 tasks, "
         "error bars = std across episodes)",
         fontsize=13, fontweight="bold", y=1.02

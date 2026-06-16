@@ -9,6 +9,9 @@ results/*
 !results/figures_compare/
 results/figures_compare/*
 !results/figures_compare/*.png
+!results/figures_baseline/
+results/figures_baseline/*
+!results/figures_baseline/*.png
 logs/
 
 *.pt
