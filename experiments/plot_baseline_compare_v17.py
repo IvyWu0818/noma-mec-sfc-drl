@@ -18,6 +18,12 @@ INPUT_FILE = "results/baseline_eval_v17.json"
 OUTPUT_DIR = "results/figures_baseline"
 OUTPUT_FILE = os.path.join(OUTPUT_DIR, "baseline_compare_v17.png")
 
+
+def savefig_both(fig, png_path, **kwargs):
+    """Save fig as PNG and as a sibling .svg (vector) file."""
+    fig.savefig(png_path, dpi=300, **kwargs)
+    fig.savefig(os.path.splitext(png_path)[0] + ".svg", **kwargs)
+
 ALGOS  = ["TD3", "Greedy", "GA"]
 COLORS = {"TD3": "#2E86AB", "Greedy": "#E07B54", "GA": "#7E57C2"}
 
@@ -57,6 +63,23 @@ def decomp_panel(ax, data):
     ax.grid(True, axis="y", linestyle="--", alpha=0.4)
 
 
+def runtime_panel(ax, data):
+    means, stds = [], []
+    for a in ALGOS:
+        vals = np.array(data.get(a, {}).get("episode_runtime_sec", [])) * 1000.0
+        means.append(float(vals.mean()) if len(vals) else 0.0)
+        stds.append(float(vals.std()) if len(vals) else 0.0)
+    bars = ax.bar(ALGOS, means, yerr=stds, capsize=4,
+                   color=[COLORS[a] for a in ALGOS], alpha=0.85)
+    ax.set_title("Per-Episode Computation Time", fontsize=12, fontweight="bold")
+    ax.set_ylabel("Runtime (ms, log scale)", fontsize=9)
+    ax.set_yscale("log")
+    ax.grid(True, axis="y", linestyle="--", alpha=0.4, which="both")
+    for b, m in zip(bars, means):
+        ax.text(b.get_x() + b.get_width() / 2, b.get_height(),
+                f"{m:.1f}", ha="center", va="bottom", fontsize=8)
+
+
 # (key, title, ylabel, filename) for the single-metric bar panels
 SINGLE_CFG = [
     ("episode_rewards",                "Cumulative Reward",       "Reward",            "baseline_compare_v17_reward.png"),
@@ -82,16 +105,23 @@ def main():
         fig, ax = plt.subplots(figsize=(8, 5))
         bar_panel(ax, data, key, title, ylabel)
         fig.tight_layout()
-        fig.savefig(os.path.join(OUTPUT_DIR, fname), dpi=300)
+        savefig_both(fig, os.path.join(OUTPUT_DIR, fname))
         plt.close(fig)
-        print(f"saved {fname}")
+        print(f"saved {fname} (+ .svg)")
 
     fig, ax = plt.subplots(figsize=(8, 5))
     decomp_panel(ax, data)
     fig.tight_layout()
-    fig.savefig(os.path.join(OUTPUT_DIR, "baseline_compare_v17_delay_decomp.png"), dpi=300)
+    savefig_both(fig, os.path.join(OUTPUT_DIR, "baseline_compare_v17_delay_decomp.png"))
     plt.close(fig)
-    print("saved baseline_compare_v17_delay_decomp.png")
+    print("saved baseline_compare_v17_delay_decomp.png (+ .svg)")
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    runtime_panel(ax, data)
+    fig.tight_layout()
+    savefig_both(fig, os.path.join(OUTPUT_DIR, "baseline_compare_v17_runtime.png"))
+    plt.close(fig)
+    print("saved baseline_compare_v17_runtime.png (+ .svg)")
 
     # ── 2. 6-panel overview ──────────────────────────────────────────────
     fig = plt.figure(figsize=(18, 10))
@@ -126,9 +156,9 @@ def main():
         "error bars = std across episodes)",
         fontsize=13, fontweight="bold", y=1.02
     )
-    fig.savefig(OUTPUT_FILE, dpi=300, bbox_inches="tight")
+    savefig_both(fig, OUTPUT_FILE, bbox_inches="tight")
     plt.close(fig)
-    print(f"saved {OUTPUT_FILE}")
+    print(f"saved {OUTPUT_FILE} (+ .svg)")
 
     n = len(data['TD3']['episode_rewards'])
     print(f"\n--- Baseline comparison: {n} episodes x 100 tasks (mean +/- std) ---")

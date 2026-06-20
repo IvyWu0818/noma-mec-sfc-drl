@@ -10,6 +10,7 @@ import os
 import json
 import time
 
+import numpy as np
 from stable_baselines3 import TD3
 
 from experiments.baselines_v17 import (
@@ -37,23 +38,33 @@ def main():
 
     results = {name: {k: [] for k in METRIC_KEYS}
                for name in ("TD3", "Greedy", "GA", "Random")}
+    for name in results:
+        results[name]["episode_runtime_sec"] = []
 
     t0 = time.time()
     for seed in range(N_EVAL_EPISODES):
+        t1 = time.perf_counter()
         ep_reward, infos = run_episode(seed, NUM_TASKS, policy_fn=td3_policy)
+        results["TD3"]["episode_runtime_sec"].append(time.perf_counter() - t1)
         for k, v in aggregate_episode(ep_reward, infos).items():
             results["TD3"][k].append(v)
 
+        t1 = time.perf_counter()
         ep_reward, infos = run_episode(seed, NUM_TASKS, policy_fn=greedy_policy)
+        results["Greedy"]["episode_runtime_sec"].append(time.perf_counter() - t1)
         for k, v in aggregate_episode(ep_reward, infos).items():
             results["Greedy"][k].append(v)
 
+        t1 = time.perf_counter()
         ep_reward, infos = run_episode(seed, NUM_TASKS, policy_fn=random_policy)
+        results["Random"]["episode_runtime_sec"].append(time.perf_counter() - t1)
         for k, v in aggregate_episode(ep_reward, infos).items():
             results["Random"][k].append(v)
 
+        t1 = time.perf_counter()
         action_seq = ga_search(seed, NUM_TASKS)
         ep_reward, infos = run_episode(seed, NUM_TASKS, action_seq=action_seq)
+        results["GA"]["episode_runtime_sec"].append(time.perf_counter() - t1)
         for k, v in aggregate_episode(ep_reward, infos).items():
             results["GA"][k].append(v)
 
@@ -68,6 +79,11 @@ def main():
     print(f"\n--- Baseline comparison: {N_EVAL_EPISODES} episodes x "
           f"{NUM_TASKS} tasks (mean +/- std) ---")
     print_summary(results)
+
+    print(f"\n--- Per-episode wall-clock runtime (decision + execution, {NUM_TASKS} tasks) ---")
+    for name in ("TD3", "Greedy", "GA", "Random"):
+        rt = results[name]["episode_runtime_sec"]
+        print(f"  {name:8s} {np.mean(rt)*1000:8.2f} ms +/- {np.std(rt)*1000:6.2f} ms")
 
 
 if __name__ == "__main__":

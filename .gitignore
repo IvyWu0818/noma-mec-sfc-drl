@@ -9,9 +9,11 @@ results/*
 !results/figures_compare/
 results/figures_compare/*
 !results/figures_compare/*.png
+!results/figures_compare/*.svg
 !results/figures_baseline/
 results/figures_baseline/*
 !results/figures_baseline/*.png
+!results/figures_baseline/*.svg
 logs/
 
 *.pt
