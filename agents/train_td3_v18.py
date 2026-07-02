@@ -6,16 +6,16 @@ from stable_baselines3 import TD3
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.noise import NormalActionNoise
-from envs.iiot_env_v17 import IIoTEnvV17, TX_POWER_W, NOISE_POWER_W, BANDWIDTH_MHZ
+from envs.iiot_env_v18 import IIoTEnvV18, TX_POWER_W, NOISE_POWER_W, BANDWIDTH_MHZ
 
 os.makedirs("models", exist_ok=True)
 os.makedirs("results", exist_ok=True)
 os.makedirs("logs", exist_ok=True)
 
 
-class V17MetricsCallback(BaseCallback):
+class V18MetricsCallback(BaseCallback):
     """
-    V17: 新增 cpu_viol_rate（rate 形式）與 colocation_ratio 追蹤
+    V18: 新增 cpu_viol_rate（rate 形式）與 colocation_ratio 追蹤
     """
 
     def __init__(self, verbose=0):
@@ -25,7 +25,7 @@ class V17MetricsCallback(BaseCallback):
             "episode_avg_delay":             [],
             "episode_avg_slack":             [],
             "episode_timeout_ratio":         [],
-            "episode_cpu_viol_rate":         [],   # V17: rate [0,1]，取代舊 avg_cpu_viol
+            "episode_cpu_viol_rate":         [],   # V18: rate [0,1]，取代舊 avg_cpu_viol
             "episode_avg_t_ul":              [],
             "episode_avg_t_comp":            [],
             "episode_avg_t_link":            [],
@@ -134,11 +134,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=None,
                          help="SB3 training seed (network init / noise / replay sampling). "
-                              "Omit to reproduce the original unseeded V17 run.")
+                              "Omit to reproduce the original unseeded V18 run.")
     args = parser.parse_args()
     suffix = f"_seed{args.seed}" if args.seed is not None else ""
 
-    env    = Monitor(IIoTEnvV17(), f"logs/v17{suffix}_")
+    env    = Monitor(IIoTEnvV18(), f"logs/v18{suffix}_")
     n_act  = env.action_space.shape[-1]  # 16
 
     action_noise = NormalActionNoise(
@@ -146,7 +146,7 @@ def main():
         sigma=0.13 * np.ones(n_act)
     )
 
-    callback = V17MetricsCallback()
+    callback = V18MetricsCallback()
 
     model = TD3(
         "MlpPolicy",
@@ -170,7 +170,7 @@ def main():
     _t_ul_example = 40.0 / _rate_avg
 
     print("=" * 60)
-    print("V17 Training (V14 base + cpu_viol_rate + colocation bonus)")
+    print("V18 Training (V14 base + cpu_viol_rate + colocation bonus)")
     print("=" * 60)
     print(f"  TX Power          : {TX_POWER_W*1000:.0f} mW = {10*np.log10(TX_POWER_W*1000):.1f} dBm")
     print(f"  Bandwidth/ch      : {BANDWIDTH_MHZ} MHz  (total {BANDWIDTH_MHZ*3:.0f} MHz)")
@@ -185,12 +185,12 @@ def main():
     print("=" * 60)
 
     model.learn(total_timesteps=1_000_000, callback=callback)
-    model.save(f"models/td3_iiot_v17{suffix}_final")
+    model.save(f"models/td3_iiot_v18{suffix}_final")
 
-    output_path = f"results/td3_v17{suffix}_training_metrics.json"
+    output_path = f"results/td3_v18{suffix}_training_metrics.json"
     with open(output_path, "w") as f:
         json.dump(callback.metrics, f, indent=2)
-    print(f"V17 data saved to {output_path}")
+    print(f"V18 data saved to {output_path}")
 
 
 if __name__ == "__main__":

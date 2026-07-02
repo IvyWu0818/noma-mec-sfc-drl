@@ -1,5 +1,6 @@
 import os
 import json
+import argparse
 import numpy as np
 from stable_baselines3 import DDPG
 from stable_baselines3.common.monitor import Monitor
@@ -130,7 +131,14 @@ class V17MetricsCallback(BaseCallback):
 
 
 def main():
-    env    = Monitor(IIoTEnvV17(), "logs/v17_ddpg_")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=None,
+                         help="SB3 training seed (network init / noise / replay sampling). "
+                              "Omit to reproduce the original unseeded V17 run.")
+    args = parser.parse_args()
+    suffix = f"_seed{args.seed}" if args.seed is not None else ""
+
+    env    = Monitor(IIoTEnvV17(), f"logs/v17_ddpg{suffix}_")
     n_act  = env.action_space.shape[-1]  # 16
 
     action_noise = NormalActionNoise(
@@ -153,6 +161,7 @@ def main():
         policy_kwargs=dict(net_arch=[400, 300]),
         verbose=1,
         device="cuda",
+        seed=args.seed,
     )
 
     _h_avg        = 1.0
@@ -171,9 +180,9 @@ def main():
     print("=" * 60)
 
     model.learn(total_timesteps=1_000_000, callback=callback)
-    model.save("models/ddpg_iiot_v17_final")
+    model.save(f"models/ddpg_iiot_v17{suffix}_final")
 
-    output_path = "results/ddpg_v17_training_metrics.json"
+    output_path = f"results/ddpg_v17{suffix}_training_metrics.json"
     with open(output_path, "w") as f:
         json.dump(callback.metrics, f, indent=2)
     print(f"DDPG V17 data saved to {output_path}")

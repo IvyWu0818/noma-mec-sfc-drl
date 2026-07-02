@@ -1,5 +1,6 @@
 import os
 import json
+import argparse
 import numpy as np
 from stable_baselines3 import SAC
 from stable_baselines3.common.monitor import Monitor
@@ -129,7 +130,14 @@ class V17MetricsCallback(BaseCallback):
 
 
 def main():
-    env    = Monitor(IIoTEnvV17(), "logs/v17_sac_")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=None,
+                         help="SB3 training seed (network init / entropy sampling / replay "
+                              "sampling). Omit to reproduce the original unseeded V17 run.")
+    args = parser.parse_args()
+    suffix = f"_seed{args.seed}" if args.seed is not None else ""
+
+    env    = Monitor(IIoTEnvV17(), f"logs/v17_sac{suffix}_")
 
     callback = V17MetricsCallback()
 
@@ -145,6 +153,7 @@ def main():
         policy_kwargs=dict(net_arch=[400, 300]),
         verbose=1,
         device="cuda",
+        seed=args.seed,
     )
 
     _h_avg        = 1.0
@@ -163,9 +172,9 @@ def main():
     print("=" * 60)
 
     model.learn(total_timesteps=1_000_000, callback=callback)
-    model.save("models/sac_iiot_v17_final")
+    model.save(f"models/sac_iiot_v17{suffix}_final")
 
-    output_path = "results/sac_v17_training_metrics.json"
+    output_path = f"results/sac_v17{suffix}_training_metrics.json"
     with open(output_path, "w") as f:
         json.dump(callback.metrics, f, indent=2)
     print(f"SAC V17 data saved to {output_path}")

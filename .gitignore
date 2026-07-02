@@ -4,7 +4,20 @@ __pycache__/
 .DS_Store
 
 results/*
+
+# ── training metrics (main per-algo reference runs) ───────────────────────
 !results/td3_v17_training_metrics.json
+!results/ddpg_v17_training_metrics.json
+!results/sac_v17_training_metrics.json
+!results/ppo_v17_training_metrics.json
+
+# ── eval summary JSONs (small aggregated results) ─────────────────────────
+!results/baseline_eval_v17.json
+!results/drl_eval_v17.json
+!results/drl_multiseed_eval_v18.json
+!results/td3_v19_eval.json
+
+# ── figures ───────────────────────────────────────────────────────────────
 !results/figures_v17/
 !results/figures_compare/
 results/figures_compare/*
@@ -14,6 +27,18 @@ results/figures_compare/*
 results/figures_baseline/*
 !results/figures_baseline/*.png
 !results/figures_baseline/*.svg
+!results/figures_drl_compare/
+results/figures_drl_compare/*
+!results/figures_drl_compare/*.png
+!results/figures_drl_compare/*.svg
+!results/figures_drl_multiseed/
+results/figures_drl_multiseed/*
+!results/figures_drl_multiseed/*.png
+!results/figures_drl_multiseed/*.svg
+!results/figures_v19/
+results/figures_v19/*
+!results/figures_v19/*.png
+!results/figures_v19/*.svg
 logs/
 
 *.pt

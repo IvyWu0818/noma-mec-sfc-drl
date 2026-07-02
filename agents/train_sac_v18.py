@@ -2,20 +2,19 @@ import os
 import json
 import argparse
 import numpy as np
-from stable_baselines3 import TD3
+from stable_baselines3 import SAC
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.noise import NormalActionNoise
-from envs.iiot_env_v17 import IIoTEnvV17, TX_POWER_W, NOISE_POWER_W, BANDWIDTH_MHZ
+from envs.iiot_env_v18 import IIoTEnvV18, TX_POWER_W, NOISE_POWER_W, BANDWIDTH_MHZ
 
 os.makedirs("models", exist_ok=True)
 os.makedirs("results", exist_ok=True)
 os.makedirs("logs", exist_ok=True)
 
 
-class V17MetricsCallback(BaseCallback):
+class V18MetricsCallback(BaseCallback):
     """
-    V17: 新增 cpu_viol_rate（rate 形式）與 colocation_ratio 追蹤
+    SAC on V18 env: same metric set as TD3 V18, for direct comparison.
     """
 
     def __init__(self, verbose=0):
@@ -25,7 +24,7 @@ class V17MetricsCallback(BaseCallback):
             "episode_avg_delay":             [],
             "episode_avg_slack":             [],
             "episode_timeout_ratio":         [],
-            "episode_cpu_viol_rate":         [],   # V17: rate [0,1]，取代舊 avg_cpu_viol
+            "episode_cpu_viol_rate":         [],
             "episode_avg_t_ul":              [],
             "episode_avg_t_comp":            [],
             "episode_avg_t_link":            [],
@@ -133,22 +132,16 @@ class V17MetricsCallback(BaseCallback):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=None,
-                         help="SB3 training seed (network init / noise / replay sampling). "
-                              "Omit to reproduce the original unseeded V17 run.")
+                         help="SB3 training seed (network init / entropy sampling / replay "
+                              "sampling). Omit to reproduce the original unseeded V18 run.")
     args = parser.parse_args()
     suffix = f"_seed{args.seed}" if args.seed is not None else ""
 
-    env    = Monitor(IIoTEnvV17(), f"logs/v17{suffix}_")
-    n_act  = env.action_space.shape[-1]  # 16
+    env    = Monitor(IIoTEnvV18(), f"logs/v18_sac{suffix}_")
 
-    action_noise = NormalActionNoise(
-        mean=np.zeros(n_act),
-        sigma=0.13 * np.ones(n_act)
-    )
+    callback = V18MetricsCallback()
 
-    callback = V17MetricsCallback()
-
-    model = TD3(
+    model = SAC(
         "MlpPolicy",
         env,
         learning_rate=2.5e-4,
@@ -157,7 +150,6 @@ def main():
         batch_size=256,
         tau=0.005,
         gamma=0.99,
-        action_noise=action_noise,
         policy_kwargs=dict(net_arch=[400, 300]),
         verbose=1,
         device="cuda",
@@ -170,27 +162,22 @@ def main():
     _t_ul_example = 40.0 / _rate_avg
 
     print("=" * 60)
-    print("V17 Training (V14 base + cpu_viol_rate + colocation bonus)")
+    print("SAC Training on V18 env (same hyperparams as TD3 V18, for comparison)")
     print("=" * 60)
     print(f"  TX Power          : {TX_POWER_W*1000:.0f} mW = {10*np.log10(TX_POWER_W*1000):.1f} dBm")
     print(f"  Bandwidth/ch      : {BANDWIDTH_MHZ} MHz  (total {BANDWIDTH_MHZ*3:.0f} MHz)")
     print(f"  E[SINR]           : {_sinr_avg:.1f} ({10*np.log10(_sinr_avg):.1f} dB)")
     print(f"  E[Rate]           : {_rate_avg:.1f} Mbps  |  t_ul(40Kb): {_t_ul_example:.2f} ms")
-    print(f"  CPU viol penalty  : 900.0 x rate (V14: 5.0 x raw, ~6.7x stronger)")
-    print(f"  Overflow penalty  : 20.0 (V14: 15.0)")
-    print(f"  Reward scale      : 75.0 (V14: 50.0)")
-    print(f"  cost = 1.0*delay + 12.0*slack + 900.0*cpu_viol_rate")
-    print(f"       + 0.5*t_comp + 1.5*deadline_pressure + 20.0*channel_overflow")
     print(f"[Obs=21, Action=16 | Total timesteps: 1,000,000]")
     print("=" * 60)
 
     model.learn(total_timesteps=1_000_000, callback=callback)
-    model.save(f"models/td3_iiot_v17{suffix}_final")
+    model.save(f"models/sac_iiot_v18{suffix}_final")
 
-    output_path = f"results/td3_v17{suffix}_training_metrics.json"
+    output_path = f"results/sac_v18{suffix}_training_metrics.json"
     with open(output_path, "w") as f:
         json.dump(callback.metrics, f, indent=2)
-    print(f"V17 data saved to {output_path}")
+    print(f"SAC V18 data saved to {output_path}")
 
 
 if __name__ == "__main__":
