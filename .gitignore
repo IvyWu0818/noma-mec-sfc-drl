@@ -11,6 +11,20 @@ results/*
 !results/sac_v17_training_metrics.json
 !results/ppo_v17_training_metrics.json
 
+# ── multi-seed training metrics (V18 / V19) ───────────────────────────────
+!results/td3_v18_seed1_training_metrics.json
+!results/td3_v18_seed2_training_metrics.json
+!results/ddpg_v18_seed1_training_metrics.json
+!results/ddpg_v18_seed2_training_metrics.json
+!results/sac_v18_seed1_training_metrics.json
+!results/sac_v18_seed2_training_metrics.json
+!results/td3_v19_seed1_training_metrics.json
+!results/td3_v19_seed2_training_metrics.json
+!results/td3_v19_seed3_training_metrics.json
+
+# ── V20 SAC (primary algorithm) training metrics ──────────────────────────
+!results/sac_v20_training_metrics.json
+
 # ── eval summary JSONs (small aggregated results) ─────────────────────────
 !results/baseline_eval_v17.json
 !results/drl_eval_v17.json
@@ -39,6 +53,10 @@ results/figures_drl_multiseed/*
 results/figures_v19/*
 !results/figures_v19/*.png
 !results/figures_v19/*.svg
+!results/figures_v20/
+results/figures_v20/*
+!results/figures_v20/*.png
+!results/figures_v20/*.svg
 logs/
 
 *.pt
