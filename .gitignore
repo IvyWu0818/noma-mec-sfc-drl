@@ -30,6 +30,7 @@ results/*
 !results/drl_eval_v17.json
 !results/drl_multiseed_eval_v18.json
 !results/td3_v19_eval.json
+!results/final_compare_v20.json
 
 # ── figures ───────────────────────────────────────────────────────────────
 !results/figures_v17/
@@ -57,6 +58,10 @@ results/figures_v19/*
 results/figures_v20/*
 !results/figures_v20/*.png
 !results/figures_v20/*.svg
+!results/figures_final_compare/
+results/figures_final_compare/*
+!results/figures_final_compare/*.png
+!results/figures_final_compare/*.svg
 logs/
 
 *.pt
