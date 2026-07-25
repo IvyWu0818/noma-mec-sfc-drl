@@ -30,8 +30,29 @@ BACKHAUL_DELAY_MS = {
     ("mec2", "mec2"): 0.0,
 }
 
-# V17: 總 MEC 算力上限（用於正規化 CPU violation → rate）
-TOTAL_MEC_CPU_CAP = 35.0 + 45.0 + 55.0   # = 135.0 MCycles/ms
+# 裝置端本地運算模型（未卸載部分 (1-rho) 的資料在裝置本地執行）
+# f_loc  : 裝置本地 CPU 算力，遠低於 MEC 節點（35/45/55），代表 IIoT 端裝置算力受限
+# kappa  : 單位資料量所需運算量（MCycles / unit data），數量級對齊 SFC 平均 cycles/data_size
+LOCAL_CPU_CAPACITY = 2.0   # MCycles/ms
+WORKLOAD_DENSITY   = 1.2   # MCycles per unit data_size
+
+
+def _default_mec_capacities(n_mec: int) -> list:
+    """MEC 節點算力配置：35, 45, 55, ... (等差 +10)。n_mec=3 時與原版數值完全一致。"""
+    return [35.0 + 10.0 * i for i in range(n_mec)]
+
+
+def _default_backhaul_delay(n_mec: int) -> dict:
+    """節點間串接延遲。n_mec=3 時沿用原版精確數值；其餘 n_mec 用
+    delay(i,j) = 1.5 * |i-j| ms 的通用規則產生（未於論文中另行標定，
+    做規模擴展實驗時的簡化假設，可依需要調整）。"""
+    names = [f"mec{i}" for i in range(n_mec)]
+    if n_mec == 3:
+        return dict(BACKHAUL_DELAY_MS)
+    return {
+        (names[i], names[j]): 1.5 * abs(i - j)
+        for i in range(n_mec) for j in range(n_mec)
+    }
 
 
 class IIoTEnvV17(gym.Env):
@@ -65,27 +86,46 @@ class IIoTEnvV17(gym.Env):
            + 0.5×t_comp + 1.5×deadline_pressure + 20.0×channel_overflow
       reward = -cost / 75.0
     ═══════════════════════════════════════════════════════════════════
-    Obs 維度 (21)：同 V14
-    Action 維度 (16)：同 V14
+    Obs 維度 = 9 + 3*n_mec + n_channels（n_mec=3, n_channels=3 時 = 21，同 V14）
+    Action 維度 = 3*n_mec + n_channels + 4（n_mec=3, n_channels=3 時 = 16，同 V14）
+      -- n_mec / n_channels 可透過建構子覆寫，供規模擴展實驗使用（見
+         experiments/scale_sweep_v17.py）。VNF 數固定為 3（SFC chain 長度不變）。
     ═══════════════════════════════════════════════════════════════════
     """
 
-    SLOT_TASK_SIZE = N_CHANNELS * MAX_NOMA_PER_CH  # = 6 tasks per time-slot
+    N_VNF = 3  # SFC chain 長度，固定不隨規模擴展實驗改變
 
-    def __init__(self, num_tasks=100, beta=12.0, seed=42, reward_scale=75.0):
+    def __init__(self, num_tasks=100, beta=12.0, seed=42, reward_scale=75.0,
+                 f_loc=LOCAL_CPU_CAPACITY, kappa=WORKLOAD_DENSITY,
+                 n_mec=3, n_channels=N_CHANNELS,
+                 mec_capacities=None, backhaul_delay=None):
         super().__init__()
         self.num_tasks    = num_tasks
         self.beta         = beta
         self.reward_scale = reward_scale
+        self.f_loc        = f_loc     # 裝置本地算力 (MCycles/ms)
+        self.kappa        = kappa     # 單位資料運算量 (MCycles/unit data)
         self.np_random    = np.random.default_rng(seed)
 
+        self.n_mec       = n_mec
+        self.n_channels  = n_channels
+        self.mec_names   = [f"mec{i}" for i in range(n_mec)]
+        self.mec_capacities = mec_capacities or _default_mec_capacities(n_mec)
+        self.total_mec_cpu_cap = float(sum(self.mec_capacities))
+        self.backhaul_delay = backhaul_delay or _default_backhaul_delay(n_mec)
+        self.SLOT_TASK_SIZE = self.n_channels * MAX_NOMA_PER_CH
+
+        placement_dim = self.N_VNF * n_mec
+        action_dim = placement_dim + self.N_VNF + n_channels + 1  # +cpu_ratios(3) +channels +rho
+        obs_dim = 9 + 3 * n_mec + n_channels
+
         self.action_space = spaces.Box(
-            low=np.zeros(16, dtype=np.float32),
-            high=np.ones(16, dtype=np.float32),
+            low=np.zeros(action_dim, dtype=np.float32),
+            high=np.ones(action_dim, dtype=np.float32),
             dtype=np.float32
         )
         self.observation_space = spaces.Box(
-            low=-100.0, high=1000.0, shape=(21,), dtype=np.float32
+            low=-100.0, high=1000.0, shape=(obs_dim,), dtype=np.float32
         )
 
         self.reset(seed=seed)
@@ -95,7 +135,7 @@ class IIoTEnvV17(gym.Env):
     # ────────────────────────────────────────────────────────────────
 
     def _sample_channel_gains(self) -> np.ndarray:
-        h_sq = self.np_random.exponential(scale=1.0, size=N_CHANNELS).astype(np.float32)
+        h_sq = self.np_random.exponential(scale=1.0, size=self.n_channels).astype(np.float32)
         return np.clip(h_sq, 0.1, 2.0)
 
     def _compute_sinr(self, task_idx: int, ch: int) -> float:
@@ -115,21 +155,20 @@ class IIoTEnvV17(gym.Env):
     def _slot_ch_remaining(self) -> list:
         return [
             max(0.0, (MAX_NOMA_PER_CH - self._slot_ch_count[k]) / MAX_NOMA_PER_CH)
-            for k in range(N_CHANNELS)
+            for k in range(self.n_channels)
         ]
 
     def _feasibility_projection(self, node_cpu_used: dict):
         """算力可行化投影（公式 5、6）。回傳 cpu_viol_rate ∈ [0,1]。"""
-        mec_names = ["mec0", "mec1", "mec2"]
         cpu_viol_raw = sum(
             max(0.0, node_cpu_used[n] - self.mec_nodes[n].cpu_capacity)
-            for n in mec_names
+            for n in self.mec_names
         )
         # V17: 正規化為 rate，與 channel_overflow_ratio 量綱一致
-        cpu_viol_rate = cpu_viol_raw / TOTAL_MEC_CPU_CAP
+        cpu_viol_rate = cpu_viol_raw / self.total_mec_cpu_cap
 
         projected = dict(node_cpu_used)
-        for n in mec_names:
+        for n in self.mec_names:
             cap = self.mec_nodes[n].cpu_capacity
             if projected[n] > cap:
                 self._last_cpu_scale[n] = cap / projected[n]
@@ -164,23 +203,22 @@ class IIoTEnvV17(gym.Env):
 
     def _get_obs(self):
         task      = self.tasks[self.current_idx]
-        mec_names = ["mec0", "mec1", "mec2"]
         total_c   = float(sum(v.cpu_cycles for v in task.sfc_chain.vnfs))
 
         mec_rem = [
             max(0.0,
                 (self.mec_nodes[n].cpu_capacity - self.mec_nodes[n].queue_load)
                 / self.mec_nodes[n].cpu_capacity)
-            for n in mec_names
+            for n in self.mec_names
         ]
-        queue_load_abs  = [float(self.mec_nodes[n].queue_load) for n in mec_names]
+        queue_load_abs  = [float(self.mec_nodes[n].queue_load) for n in self.mec_names]
         queue_load_norm = [
             float(self.mec_nodes[n].queue_load / self.mec_nodes[n].cpu_capacity)
-            for n in mec_names
+            for n in self.mec_names
         ]
         pressure  = (task.data_size + total_c) / max(task.deadline, 1)
         ch_rem    = self._slot_ch_remaining()
-        queue_delta = [float(queue_load_abs[i] - self._prev_queue[i]) for i in range(3)]
+        queue_delta = [float(queue_load_abs[i] - self._prev_queue[i]) for i in range(self.n_mec)]
         best_sinr   = float(np.max(self._task_channel_gains[self.current_idx]))
 
         return np.array([
@@ -203,13 +241,17 @@ class IIoTEnvV17(gym.Env):
 
     def step(self, action):
         task      = self.tasks[self.current_idx]
-        mec_names = ["mec0", "mec1", "mec2"]
+        mec_names = self.mec_names
+
+        placement_dim = self.N_VNF * self.n_mec
+        cpu_ratio_end = placement_dim + self.N_VNF
+        channel_end   = cpu_ratio_end + self.n_channels
 
         # ── 1. 部分卸載比例 ρ_u ────────────────────────────────────
-        rho = float(np.clip(action[15], 0.01, 1.0))
+        rho = float(np.clip(action[-1], 0.01, 1.0))
 
         # ── 2. NOMA 子通道指派 ──────────────────────────────────────
-        channel_scores = action[12:15]
+        channel_scores = action[cpu_ratio_end:channel_end]
         preferred_ch   = int(np.argmax(channel_scores))
 
         channel_overflow = 0.0
@@ -230,8 +272,8 @@ class IIoTEnvV17(gym.Env):
         t_ul = rho * task.data_size / max(ru_k, 1e-6)
 
         # ── 4. VNF 放置 + CPU 分配 ─────────────────────────────────
-        placement_scores  = action[:9].reshape(3, 3)
-        cpu_ratios        = action[9:12]
+        placement_scores  = action[:placement_dim].reshape(self.N_VNF, self.n_mec)
+        cpu_ratios        = action[placement_dim:cpu_ratio_end]
         node_cpu_used_raw = {n: 0.0 for n in mec_names}
         vnf_allocs, selected_nodes = [], []
 
@@ -258,11 +300,15 @@ class IIoTEnvV17(gym.Env):
             f_proj  = max(f_alloc_orig * self._last_cpu_scale[sel_node], 1e-6)
             t_comp += cpu_cycles / f_proj
             if prev_node is not None and prev_node != sel_node:
-                t_link += BACKHAUL_DELAY_MS.get((prev_node, sel_node), 2.0)
+                t_link += self.backhaul_delay.get((prev_node, sel_node), 2.0)
             prev_node = sel_node
 
-        # ── 7. 端到端延遲 ───────────────────────────────────────────
-        delay = t_ul + t_comp + t_link
+        # ── 7. 端到端延遲（本地分支 vs 卸載分支，並行取最大值）──────
+        # 卸載分支：ρ 部分資料上傳 + 邊緣運算 + 節點間串接
+        t_offload = t_ul + t_comp + t_link
+        # 本地分支：(1-ρ) 未卸載資料留在裝置本地運算（無需上傳/邊緣算力）
+        t_local = self.kappa * (1.0 - rho) * task.data_size / self.f_loc
+        delay = max(t_local, t_offload)
 
         # ── 8. Slack & 違規 ────────────────────────────────────────
         slack             = max(0.0, delay - task.deadline)
@@ -289,14 +335,15 @@ class IIoTEnvV17(gym.Env):
         # ── 12. Time-slot 切換 ─────────────────────────────────────
         self.current_idx += 1
         if self.current_idx % self.SLOT_TASK_SIZE == 0:
-            self._slot_ch_count = [0] * N_CHANNELS
+            self._slot_ch_count = [0] * self.n_channels
 
         # ── 13. 時變通道增益更新 ───────────────────────────────────
         prev_idx = self.current_idx - 1
         self._task_channel_gains[prev_idx] = self._sample_channel_gains()
 
         terminated = self.current_idx >= self.num_tasks
-        obs = self._get_obs() if not terminated else np.zeros(21, dtype=np.float32)
+        obs = self._get_obs() if not terminated else np.zeros(
+            self.observation_space.shape[0], dtype=np.float32)
 
         return obs, float(reward), terminated, False, {
             "delay":             float(delay),
@@ -305,6 +352,8 @@ class IIoTEnvV17(gym.Env):
             "t_ul":              float(t_ul),
             "t_comp":            float(t_comp),
             "t_link":            float(t_link),
+            "t_local":           float(t_local),
+            "t_offload":         float(t_offload),
             "deadline_pressure": float(deadline_pressure),
             "task_type_id":      int(getattr(task, "task_type_id", 0)),
             "assigned_ch":       int(assigned_ch),
@@ -323,9 +372,7 @@ class IIoTEnvV17(gym.Env):
             self.np_random = np.random.default_rng(seed)
 
         self.mec_nodes = {
-            "mec0": MECNode("mec0", 35),
-            "mec1": MECNode("mec1", 45),
-            "mec2": MECNode("mec2", 55),
+            n: MECNode(n, cap) for n, cap in zip(self.mec_names, self.mec_capacities)
         }
 
         self.tasks = []
@@ -338,8 +385,8 @@ class IIoTEnvV17(gym.Env):
         ])
 
         self._channel_assignment = [-1] * self.num_tasks
-        self._slot_ch_count      = [0] * N_CHANNELS
-        self._last_cpu_scale     = {"mec0": 1.0, "mec1": 1.0, "mec2": 1.0}
-        self._prev_queue         = [0.0, 0.0, 0.0]
+        self._slot_ch_count      = [0] * self.n_channels
+        self._last_cpu_scale     = {n: 1.0 for n in self.mec_names}
+        self._prev_queue         = [0.0] * self.n_mec
         self.current_idx         = 0
         return self._get_obs(), {}

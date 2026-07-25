@@ -130,16 +130,29 @@ class V17MetricsCallback(BaseCallback):
         return True
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--seed", type=int, default=None,
-                         help="SB3 training seed (network init / noise / replay sampling). "
-                              "Omit to reproduce the original unseeded V17 run.")
-    args = parser.parse_args()
-    suffix = f"_seed{args.seed}" if args.seed is not None else ""
+def train(seed=None, num_tasks=100, n_mec=3, n_channels=3,
+          total_timesteps=1_000_000, device="cuda", model_path=None,
+          metrics_path=None, log_prefix=None, verbose=1):
+    """Train one TD3(V17) model for a given (num_tasks, n_mec, n_channels)
+    scale-sweep config. Returns the saved model path.
 
-    env    = Monitor(IIoTEnvV17(), f"logs/v17{suffix}_")
-    n_act  = env.action_space.shape[-1]  # 16
+    Scale-sweep configs (see experiments/scale_sweep_v17.py) change the env's
+    action/observation dims, so each config needs its own freshly-trained
+    model -- there is no shared/transferable policy across configs."""
+    is_default = (num_tasks == 100 and n_mec == 3 and n_channels == 3)
+    suffix = "" if is_default else f"_tasks{num_tasks}_mec{n_mec}_ch{n_channels}"
+    if seed is not None:
+        suffix += f"_seed{seed}"
+
+    model_path   = model_path   or f"models/td3_iiot_v17{suffix}_final"
+    metrics_path = metrics_path or f"results/td3_v17{suffix}_training_metrics.json"
+    log_prefix   = log_prefix   or f"logs/v17{suffix}_"
+
+    env = Monitor(
+        IIoTEnvV17(num_tasks=num_tasks, n_mec=n_mec, n_channels=n_channels),
+        log_prefix,
+    )
+    n_act = env.action_space.shape[-1]
 
     action_noise = NormalActionNoise(
         mean=np.zeros(n_act),
@@ -159,9 +172,9 @@ def main():
         gamma=0.99,
         action_noise=action_noise,
         policy_kwargs=dict(net_arch=[400, 300]),
-        verbose=1,
-        device="cuda",
-        seed=args.seed,
+        verbose=verbose,
+        device=device,
+        seed=seed,
     )
 
     _h_avg        = 1.0
@@ -172,8 +185,9 @@ def main():
     print("=" * 60)
     print("V17 Training (V14 base + cpu_viol_rate + colocation bonus)")
     print("=" * 60)
+    print(f"  Config            : num_tasks={num_tasks}, n_mec={n_mec}, n_channels={n_channels}")
     print(f"  TX Power          : {TX_POWER_W*1000:.0f} mW = {10*np.log10(TX_POWER_W*1000):.1f} dBm")
-    print(f"  Bandwidth/ch      : {BANDWIDTH_MHZ} MHz  (total {BANDWIDTH_MHZ*3:.0f} MHz)")
+    print(f"  Bandwidth/ch      : {BANDWIDTH_MHZ} MHz  (total {BANDWIDTH_MHZ*n_channels:.0f} MHz)")
     print(f"  E[SINR]           : {_sinr_avg:.1f} ({10*np.log10(_sinr_avg):.1f} dB)")
     print(f"  E[Rate]           : {_rate_avg:.1f} Mbps  |  t_ul(40Kb): {_t_ul_example:.2f} ms")
     print(f"  CPU viol penalty  : 900.0 x rate (V14: 5.0 x raw, ~6.7x stronger)")
@@ -181,16 +195,37 @@ def main():
     print(f"  Reward scale      : 75.0 (V14: 50.0)")
     print(f"  cost = 1.0*delay + 12.0*slack + 900.0*cpu_viol_rate")
     print(f"       + 0.5*t_comp + 1.5*deadline_pressure + 20.0*channel_overflow")
-    print(f"[Obs=21, Action=16 | Total timesteps: 1,000,000]")
+    print(f"[Obs={env.observation_space.shape[0]}, Action={n_act} | Total timesteps: {total_timesteps:,}]")
     print("=" * 60)
 
-    model.learn(total_timesteps=1_000_000, callback=callback)
-    model.save(f"models/td3_iiot_v17{suffix}_final")
+    model.learn(total_timesteps=total_timesteps, callback=callback)
+    model.save(model_path)
 
-    output_path = f"results/td3_v17{suffix}_training_metrics.json"
-    with open(output_path, "w") as f:
+    with open(metrics_path, "w") as f:
         json.dump(callback.metrics, f, indent=2)
-    print(f"V17 data saved to {output_path}")
+    print(f"V17 data saved to {metrics_path}")
+
+    return model_path
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=None,
+                         help="SB3 training seed (network init / noise / replay sampling). "
+                              "Omit to reproduce the original unseeded V17 run.")
+    parser.add_argument("--num_tasks", type=int, default=100,
+                         help="Tasks per episode (scale-sweep axis).")
+    parser.add_argument("--n_mec", type=int, default=3,
+                         help="Number of MEC nodes (scale-sweep axis).")
+    parser.add_argument("--n_channels", type=int, default=3,
+                         help="Number of NOMA sub-channels (scale-sweep axis).")
+    parser.add_argument("--total_timesteps", type=int, default=1_000_000)
+    parser.add_argument("--device", type=str, default="cuda")
+    args = parser.parse_args()
+
+    train(seed=args.seed, num_tasks=args.num_tasks, n_mec=args.n_mec,
+          n_channels=args.n_channels, total_timesteps=args.total_timesteps,
+          device=args.device)
 
 
 if __name__ == "__main__":

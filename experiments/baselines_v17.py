@@ -6,9 +6,19 @@ that searches the full per-episode action sequence.
 
 import numpy as np
 
-from envs.iiot_env_v17 import IIoTEnvV17, N_CHANNELS, MAX_NOMA_PER_CH
+from envs.iiot_env_v17 import IIoTEnvV17, MAX_NOMA_PER_CH
 
-ACTION_DIM = 16
+ACTION_DIM = 16   # default (n_mec=3, n_channels=3) action dim; scale-sweep configs differ
+
+
+def _action_layout(env: IIoTEnvV17):
+    """(n_vnf, placement_dim, cpu_ratio_end, channel_end, action_dim) for env's
+    current n_mec/n_channels, so Greedy/GA work for any scale-sweep config."""
+    n_vnf = env.N_VNF
+    placement_dim = n_vnf * env.n_mec
+    cpu_ratio_end = placement_dim + n_vnf
+    channel_end   = cpu_ratio_end + env.n_channels
+    return n_vnf, placement_dim, cpu_ratio_end, channel_end, env.action_space.shape[0]
 
 METRIC_KEYS = [
     "episode_rewards",
@@ -46,9 +56,10 @@ def greedy_policy(env: IIoTEnvV17, obs=None) -> np.ndarray:
     available capacity (floored by the env's f_min). This lets backhaul (t_link)
     emerge naturally when a later VNF finds another node has more headroom.
     Channel: overflow-avoiding best-gain pick. rho: full offload."""
-    mec_names = ["mec0", "mec1", "mec2"]
+    mec_names = env.mec_names
+    n_vnf, placement_dim, cpu_ratio_end, channel_end, action_dim = _action_layout(env)
     task = env.tasks[env.current_idx]
-    action = np.zeros(ACTION_DIM, dtype=np.float32)
+    action = np.zeros(action_dim, dtype=np.float32)
 
     # Tentative per-node available capacity, updated as VNFs are placed
     avail = {
@@ -60,7 +71,7 @@ def greedy_policy(env: IIoTEnvV17, obs=None) -> np.ndarray:
     for i, vnf in enumerate(task.sfc_chain.vnfs):
         sel_node = max(mec_names, key=lambda n: avail[n])
         sel_idx = mec_names.index(sel_node)
-        action[i * 3 + sel_idx] = 1.0
+        action[i * env.n_mec + sel_idx] = 1.0
 
         node_cap = env.mec_nodes[sel_node].cpu_capacity
         f_min = max(
@@ -68,20 +79,20 @@ def greedy_policy(env: IIoTEnvV17, obs=None) -> np.ndarray:
             node_cap * 0.12,
         )
         f_alloc = float(np.clip(avail[sel_node] / 3.0, f_min, node_cap))
-        action[9 + i] = f_alloc / node_cap
+        action[placement_dim + i] = f_alloc / node_cap
 
         avail[sel_node] = max(avail[sel_node] - f_alloc, 0.0)
 
     # 3. Channel: best gain among channels that won't overflow this slot
     gains = env._task_channel_gains[env.current_idx]
-    candidates = [k for k in range(N_CHANNELS) if env._slot_ch_count[k] < MAX_NOMA_PER_CH]
+    candidates = [k for k in range(env.n_channels) if env._slot_ch_count[k] < MAX_NOMA_PER_CH]
     if not candidates:
-        candidates = list(range(N_CHANNELS))
+        candidates = list(range(env.n_channels))
     best_ch = max(candidates, key=lambda k: gains[k])
-    action[12 + best_ch] = 1.0
+    action[cpu_ratio_end + best_ch] = 1.0
 
     # 4. rho: full offload
-    action[15] = 1.0
+    action[-1] = 1.0
 
     return action
 
@@ -90,10 +101,13 @@ def random_policy(env: IIoTEnvV17, obs=None) -> np.ndarray:
     return env.action_space.sample()
 
 
-def run_episode(seed, num_tasks=100, policy_fn=None, action_seq=None, record_actions=False):
+def run_episode(seed, num_tasks=100, policy_fn=None, action_seq=None, record_actions=False,
+                 env_kwargs=None):
     """Run one episode under a step-wise policy_fn(env, obs) or a fixed
-    action_seq of shape (num_tasks, ACTION_DIM). Returns (ep_reward, infos[, actions])."""
-    env = IIoTEnvV17(num_tasks=num_tasks, seed=seed)
+    action_seq of shape (num_tasks, action_dim). env_kwargs (e.g. n_mec=5,
+    n_channels=5) is forwarded to IIoTEnvV17 for scale-sweep configs.
+    Returns (ep_reward, infos[, actions])."""
+    env = IIoTEnvV17(num_tasks=num_tasks, seed=seed, **(env_kwargs or {}))
     obs, _ = env.reset(seed=seed)
 
     ep_reward = 0.0
@@ -120,8 +134,9 @@ def run_episode(seed, num_tasks=100, policy_fn=None, action_seq=None, record_act
     return ep_reward, infos
 
 
-def greedy_action_sequence(seed, num_tasks=100) -> np.ndarray:
-    _, _, actions = run_episode(seed, num_tasks, policy_fn=greedy_policy, record_actions=True)
+def greedy_action_sequence(seed, num_tasks=100, env_kwargs=None) -> np.ndarray:
+    _, _, actions = run_episode(seed, num_tasks, policy_fn=greedy_policy,
+                                 record_actions=True, env_kwargs=env_kwargs)
     return actions
 
 
@@ -168,28 +183,33 @@ def print_summary(results: dict):
 
 def ga_search(seed, num_tasks=100, pop_size=24, generations=15,
                elite_frac=0.25, mutation_sigma=0.15,
-               placement_reshuffle_prob=0.08) -> np.ndarray:
-    """Offline GA over the full episode's action sequence (shape (num_tasks, 16)).
+               placement_reshuffle_prob=0.08, env_kwargs=None) -> np.ndarray:
+    """Offline GA over the full episode's action sequence (shape (num_tasks, action_dim)).
     Fitness = cumulative episode reward when replayed against env(seed).
+    env_kwargs (e.g. n_mec=5, n_channels=5) is forwarded to IIoTEnvV17 for
+    scale-sweep configs; action_dim/placement_dim are derived from it.
 
     Besides Gaussian mutation on all genes, a per-task placement-reshuffle
-    mutation (re-randomizing action[:9] for that task) is applied with
-    probability `placement_reshuffle_prob`. The initial population also
+    mutation (re-randomizing action[:placement_dim] for that task) is applied
+    with probability `placement_reshuffle_prob`. The initial population also
     includes "greedy with partially reshuffled placement" individuals. Both
     let the search explore MEC-assignment (and thus backhaul/t_link) patterns
     beyond the greedy seed's fixed placement cycle."""
     rng = np.random.default_rng(seed + 100_000)
-    chrom_shape = (num_tasks, ACTION_DIM)
+
+    probe_env = IIoTEnvV17(num_tasks=1, seed=seed, **(env_kwargs or {}))
+    _, placement_dim, _, _, action_dim = _action_layout(probe_env)
+    chrom_shape = (num_tasks, action_dim)
     n_elite = max(2, int(pop_size * elite_frac))
 
-    greedy_seq = greedy_action_sequence(seed, num_tasks)
+    greedy_seq = greedy_action_sequence(seed, num_tasks, env_kwargs=env_kwargs)
 
     def reshuffle_placement(ind, prob):
         out = ind.copy()
         mask = rng.random(num_tasks) < prob
         n = int(mask.sum())
         if n:
-            out[mask, :9] = rng.uniform(0.0, 1.0, (n, 9))
+            out[mask, :placement_dim] = rng.uniform(0.0, 1.0, (n, placement_dim))
         return out
 
     population = []
@@ -205,7 +225,10 @@ def ga_search(seed, num_tasks=100, pop_size=24, generations=15,
     best_ind, best_fit = None, -np.inf
 
     for gen in range(generations):
-        fitness = np.array([run_episode(seed, num_tasks, action_seq=ind)[0] for ind in population])
+        fitness = np.array([
+            run_episode(seed, num_tasks, action_seq=ind, env_kwargs=env_kwargs)[0]
+            for ind in population
+        ])
 
         gen_best_idx = int(np.argmax(fitness))
         if fitness[gen_best_idx] > best_fit:
