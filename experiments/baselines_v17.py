@@ -4,6 +4,8 @@ Non-DRL baseline policies for IIoTEnvV17: Greedy, Random, and an offline GA
 that searches the full per-episode action sequence.
 """
 
+import time
+
 import numpy as np
 
 from envs.iiot_env_v17 import IIoTEnvV17, MAX_NOMA_PER_CH
@@ -181,9 +183,10 @@ def print_summary(results: dict):
         print(row)
 
 
-def ga_search(seed, num_tasks=100, pop_size=24, generations=15,
+def ga_search(seed, num_tasks=100, pop_size=24, generations=100,
                elite_frac=0.25, mutation_sigma=0.15,
-               placement_reshuffle_prob=0.08, env_kwargs=None) -> np.ndarray:
+               placement_reshuffle_prob=0.08, env_kwargs=None,
+               return_history=False, checkpoint_generations=(15, 50, 100)):
     """Offline GA over the full episode's action sequence (shape (num_tasks, action_dim)).
     Fitness = cumulative episode reward when replayed against env(seed).
     env_kwargs (e.g. n_mec=5, n_channels=5) is forwarded to IIoTEnvV17 for
@@ -194,8 +197,18 @@ def ga_search(seed, num_tasks=100, pop_size=24, generations=15,
     with probability `placement_reshuffle_prob`. The initial population also
     includes "greedy with partially reshuffled placement" individuals. Both
     let the search explore MEC-assignment (and thus backhaul/t_link) patterns
-    beyond the greedy seed's fixed placement cycle."""
+    beyond the greedy seed's fixed placement cycle.
+
+    If return_history=True, returns (best_ind, history) instead of just
+    best_ind. history records the best-so-far fitness and cumulative
+    wall-clock time after every generation (for a fitness-vs-generation
+    convergence curve), plus a snapshot of the best-so-far individual at each
+    generation in `checkpoint_generations` (for delay/runtime comparisons at
+    e.g. 15 vs 50 vs 100 generations without re-running the search)."""
     rng = np.random.default_rng(seed + 100_000)
+    t_start = time.perf_counter()
+    fitness_history, elapsed_history = [], []
+    checkpoints = {}
 
     probe_env = IIoTEnvV17(num_tasks=1, seed=seed, **(env_kwargs or {}))
     _, placement_dim, _, _, action_dim = _action_layout(probe_env)
@@ -238,6 +251,15 @@ def ga_search(seed, num_tasks=100, pop_size=24, generations=15,
         order = np.argsort(fitness)[::-1]
         elites = [population[i] for i in order[:n_elite]]
 
+        # ── 記錄本代結束時的最佳 fitness / 累計運算時間（收斂曲線用）──
+        fitness_history.append(best_fit)
+        elapsed_history.append(time.perf_counter() - t_start)
+        if (gen + 1) in checkpoint_generations:
+            checkpoints[gen + 1] = dict(
+                best_ind=best_ind.copy(), fitness=best_fit,
+                elapsed_sec=elapsed_history[-1],
+            )
+
         sigma = mutation_sigma * (1.0 - gen / generations)
         new_population = list(elites)
         while len(new_population) < pop_size:
@@ -250,4 +272,9 @@ def ga_search(seed, num_tasks=100, pop_size=24, generations=15,
 
         population = new_population
 
+    if return_history:
+        history = dict(fitness_per_gen=fitness_history,
+                        elapsed_sec_per_gen=elapsed_history,
+                        checkpoints=checkpoints)
+        return best_ind, history
     return best_ind
