@@ -4,9 +4,12 @@ Batch scalability sweep for IIoTEnvV17: TD3 (freshly trained per config) vs
 Greedy vs GA, across three independent one-factor-at-a-time axes (other
 settings held at the baseline: num_tasks=100, n_mec=3, n_channels=3):
 
-  - num_tasks  : 50 / 100 / 200 / 500
+  - num_tasks  : 50 / 100 / 200 / 300 / 500
   - n_mec      : 3 / 5 / 7            (n_channels held at 3)
   - n_channels : 3 / 5                (n_mec held at 3)
+
+  (300 is included alongside 200/500 to directly match the reviewer-requested
+  "100 -> 300 tasks, 3 -> 5 nodes" density-scaling sensitivity check.)
 
 TD3 needs a freshly-trained model per config: changing n_mec/n_channels
 changes the env's action/observation dims, so no policy is transferable
@@ -35,7 +38,7 @@ from stable_baselines3 import TD3
 from agents.train_td3_v17 import train as train_td3
 from experiments.baselines_v17 import run_episode, greedy_policy, ga_search
 
-TASK_SWEEP    = [50, 100, 200, 500]
+TASK_SWEEP    = [50, 100, 200, 300, 500]
 MEC_SWEEP     = [3, 5, 7]
 CHANNEL_SWEEP = [3, 5]
 
