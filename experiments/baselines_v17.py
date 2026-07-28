@@ -186,7 +186,8 @@ def print_summary(results: dict):
 def ga_search(seed, num_tasks=100, pop_size=24, generations=100,
                elite_frac=0.25, mutation_sigma=0.15,
                placement_reshuffle_prob=0.08, env_kwargs=None,
-               return_history=False, checkpoint_generations=(15, 50, 100)):
+               return_history=False, checkpoint_generations=(15, 50, 100),
+               sigma_decay_generations=None):
     """Offline GA over the full episode's action sequence (shape (num_tasks, action_dim)).
     Fitness = cumulative episode reward when replayed against env(seed).
     env_kwargs (e.g. n_mec=5, n_channels=5) is forwarded to IIoTEnvV17 for
@@ -198,6 +199,14 @@ def ga_search(seed, num_tasks=100, pop_size=24, generations=100,
     includes "greedy with partially reshuffled placement" individuals. Both
     let the search explore MEC-assignment (and thus backhaul/t_link) patterns
     beyond the greedy seed's fixed placement cycle.
+
+    Mutation sigma anneals linearly to 0 over `sigma_decay_generations`
+    generations (default: `generations` itself, i.e. sigma reaches ~0 exactly
+    at the end of this run -- the original behavior). Passing a fixed
+    `sigma_decay_generations` decouples the annealing schedule from the total
+    run length, so runs of different `generations` can be compared on equal
+    footing (same sigma at the same generation index) instead of each run's
+    checkpoints reflecting a different anneal rate.
 
     If return_history=True, returns (best_ind, history) instead of just
     best_ind. history records the best-so-far fitness and cumulative
@@ -236,6 +245,7 @@ def ga_search(seed, num_tasks=100, pop_size=24, generations=100,
         population.append(np.clip(ind, 0.0, 1.0).astype(np.float32))
 
     best_ind, best_fit = None, -np.inf
+    decay_gens = sigma_decay_generations or generations
 
     for gen in range(generations):
         fitness = np.array([
@@ -260,7 +270,7 @@ def ga_search(seed, num_tasks=100, pop_size=24, generations=100,
                 elapsed_sec=elapsed_history[-1],
             )
 
-        sigma = mutation_sigma * (1.0 - gen / generations)
+        sigma = mutation_sigma * max(0.0, 1.0 - gen / decay_gens)
         new_population = list(elites)
         while len(new_population) < pop_size:
             p1, p2 = elites[rng.integers(0, n_elite)], elites[rng.integers(0, n_elite)]

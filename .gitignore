@@ -34,6 +34,11 @@ results/*
 !results/td3_v19_eval.json
 !results/final_compare_v20.json
 !results/drl_multiseed_eval_v18_ppo.json
+!results/ga_convergence_v17.json
+
+# ── scale sweep (TD3 vs Greedy vs GA across num_tasks/n_mec/n_channels) ───
+!results/scale_sweep_v17.csv
+!results/scale_sweep_v17_advantage.csv
 
 # ── figures ───────────────────────────────────────────────────────────────
 !results/figures_v17/
@@ -69,6 +74,10 @@ results/figures_final_compare/*
 results/figures_drl_multiseed_ppo/*
 !results/figures_drl_multiseed_ppo/*.png
 !results/figures_drl_multiseed_ppo/*.svg
+!results/figures_ga_convergence_v17/
+results/figures_ga_convergence_v17/*
+!results/figures_ga_convergence_v17/*.png
+!results/figures_ga_convergence_v17/*.svg
 logs/
 
 *.pt

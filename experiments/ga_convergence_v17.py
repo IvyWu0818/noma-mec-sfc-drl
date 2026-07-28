@@ -1,10 +1,9 @@
 """
 ga_convergence_v17.py
-GA(V17) convergence analysis: run ga_search() out to 100 generations (instead
-of the old default of 15) across N eval seeds, plot the fitness-vs-generation
-convergence curve, and compare end-to-end delay / wall-clock computation time
-at 15 vs 50 vs 100 generations to check whether 15 generations was already
-enough.
+GA(V17) convergence analysis: run ga_search() out to 300 generations across
+N eval seeds, plot the fitness-vs-generation convergence curve, and compare
+end-to-end delay / wall-clock computation time at 100 vs 200 vs 300
+generations to check whether 100 generations was already enough.
 
 Run: python -m experiments.ga_convergence_v17
 """
@@ -19,8 +18,10 @@ from experiments.baselines_v17 import ga_search, run_episode
 
 NUM_TASKS   = 100
 N_SEEDS     = 20
-GENERATIONS = 100
-CHECKPOINTS = (15, 50, 100)
+GENERATIONS = 300
+CHECKPOINTS = (100, 200, 300)
+SIGMA_DECAY_GENERATIONS = 100   # anneal sigma->0 by gen 100 regardless of GENERATIONS,
+                                # so 100/200/300-gen checkpoints are on equal footing
 
 OUTPUT_DIR    = "results/figures_ga_convergence_v17"
 OUTPUT_FIG    = os.path.join(OUTPUT_DIR, "ga_convergence_v17.png")
@@ -43,6 +44,7 @@ def main():
         best_ind, history = ga_search(
             seed, NUM_TASKS, generations=GENERATIONS,
             checkpoint_generations=CHECKPOINTS, return_history=True,
+            sigma_decay_generations=SIGMA_DECAY_GENERATIONS,
         )
         fitness_curves.append(history["fitness_per_gen"])
 
@@ -53,8 +55,8 @@ def main():
             checkpoint_elapsed[g].append(ck["elapsed_sec"])
 
         print(f"  seed {seed:2d}/{N_SEEDS} done "
-              f"(gen15 delay={checkpoint_delay[15][-1]:.3f}, "
-              f"gen100 delay={checkpoint_delay[100][-1]:.3f})")
+              f"(gen{CHECKPOINTS[0]} delay={checkpoint_delay[CHECKPOINTS[0]][-1]:.3f}, "
+              f"gen{CHECKPOINTS[-1]} delay={checkpoint_delay[CHECKPOINTS[-1]][-1]:.3f})")
 
     fitness_curves = np.array(fitness_curves)          # (N_SEEDS, GENERATIONS)
     mean_curve = fitness_curves.mean(axis=0)
@@ -89,16 +91,17 @@ def main():
                            runtime_mean=float(t_mean), runtime_std=float(t_std))
         print(f"  {g:<14}{d_mean:>10.4f} +/- {d_std:<5.4f}{t_mean:>16.4f} +/- {t_std:<5.4f}")
 
-    d15, d50, d100 = summary[15]["delay_mean"], summary[50]["delay_mean"], summary[100]["delay_mean"]
-    gain_15_to_50  = (d15 - d50) / d15 * 100
-    gain_50_to_100 = (d50 - d100) / d50 * 100 if d50 != 0 else 0.0
-    gain_15_to_100 = (d15 - d100) / d15 * 100
-    print(f"\n  delay improvement 15->50 gens : {gain_15_to_50:+.2f}%")
-    print(f"  delay improvement 50->100 gens: {gain_50_to_100:+.2f}%")
-    print(f"  delay improvement 15->100 gens: {gain_15_to_100:+.2f}%")
-    verdict = ("15 代已大致收斂（15->100 代延遲改善 <2%）"
-               if abs(gain_15_to_100) < 2.0 else
-               "15 代尚未收斂，延長代數仍有明顯延遲改善")
+    c0, c1, c2 = CHECKPOINTS
+    d0, d1, d2 = summary[c0]["delay_mean"], summary[c1]["delay_mean"], summary[c2]["delay_mean"]
+    gain_0_to_1 = (d0 - d1) / d0 * 100
+    gain_1_to_2 = (d1 - d2) / d1 * 100 if d1 != 0 else 0.0
+    gain_0_to_2 = (d0 - d2) / d0 * 100
+    print(f"\n  delay improvement {c0}->{c1} gens : {gain_0_to_1:+.2f}%")
+    print(f"  delay improvement {c1}->{c2} gens: {gain_1_to_2:+.2f}%")
+    print(f"  delay improvement {c0}->{c2} gens: {gain_0_to_2:+.2f}%")
+    verdict = (f"{c0} 代已大致收斂（{c0}->{c2} 代延遲改善 <2%）"
+               if abs(gain_0_to_2) < 2.0 else
+               f"{c0} 代尚未收斂，延長代數仍有明顯延遲改善")
     print(f"  => {verdict}")
 
     with open(OUTPUT_JSON, "w") as f:
@@ -107,9 +110,9 @@ def main():
             "fitness_std_per_gen":  std_curve.tolist(),
             "checkpoint_summary":   summary,
             "delay_improvement_pct": {
-                "15_to_50": gain_15_to_50,
-                "50_to_100": gain_50_to_100,
-                "15_to_100": gain_15_to_100,
+                f"{c0}_to_{c1}": gain_0_to_1,
+                f"{c1}_to_{c2}": gain_1_to_2,
+                f"{c0}_to_{c2}": gain_0_to_2,
             },
         }, f, indent=2)
     print(f"saved {OUTPUT_JSON}")
