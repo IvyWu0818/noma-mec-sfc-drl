@@ -39,6 +39,14 @@ results/*
 # ── scale sweep (TD3 vs Greedy vs GA across num_tasks/n_mec/n_channels) ───
 !results/scale_sweep_v17.csv
 !results/scale_sweep_v17_advantage.csv
+!results/td3_v17_tasks50_mec3_ch3_training_metrics.json
+!results/td3_v17_tasks100_mec3_ch3_training_metrics.json
+!results/td3_v17_tasks200_mec3_ch3_training_metrics.json
+!results/td3_v17_tasks300_mec3_ch3_training_metrics.json
+!results/td3_v17_tasks500_mec3_ch3_training_metrics.json
+!results/td3_v17_tasks100_mec5_ch3_training_metrics.json
+!results/td3_v17_tasks100_mec7_ch3_training_metrics.json
+!results/td3_v17_tasks100_mec3_ch5_training_metrics.json
 
 # ── figures ───────────────────────────────────────────────────────────────
 !results/figures_v17/
